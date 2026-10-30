@@ -17,6 +17,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -45,6 +46,7 @@ import java.util.Date
 fun ObtainiumScreen(model: ObtainiumViewModel) {
  val apps by model.apps.collectAsState()
  val githubToken by model.githubToken.collectAsState()
+ val downloadProgress by model.downloadProgress.collectAsState()
  val context = LocalContext.current
  var adding by remember { mutableStateOf(false) }
  var url by remember { mutableStateOf("") }
@@ -70,7 +72,7 @@ fun ObtainiumScreen(model: ObtainiumViewModel) {
   } else {
    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     items(apps, key = { it.id }) { app ->
-     AppCard(app, githubToken,
+     AppCard(app, githubToken, downloadProgress?.takeIf { it.appId == app.id },
       onCheck = { model.check(app.id) },
       onRemove = { model.remove(app.id) },
       onEdit = {
@@ -165,7 +167,7 @@ fun ObtainiumScreen(model: ObtainiumViewModel) {
 }
 
 @Composable
-private fun AppCard(app: TrackedApp, githubToken: String, onCheck: () -> Unit, onRemove: () -> Unit, onEdit: () -> Unit, onInstall: () -> Unit) {
+private fun AppCard(app: TrackedApp, githubToken: String, progress: ApkDownloadProgress?, onCheck: () -> Unit, onRemove: () -> Unit, onEdit: () -> Unit, onInstall: () -> Unit) {
  val context = LocalContext.current
  val iconPath by produceState<String?>(initialValue = null, app.sourceUrl, githubToken) {
   value = findLauncherIcon(context, app.sourceUrl, githubToken)
@@ -205,10 +207,35 @@ private fun AppCard(app: TrackedApp, githubToken: String, onCheck: () -> Unit, o
     OutlinedButton(onClick = onCheck) { Text("Проверить") }
     OutlinedButton(onClick = onEdit) { Text("Редактировать") }
    }
+   if (progress != null) {
+    val knownTotal = progress.total > 0L
+    val fraction = if (knownTotal) (progress.downloaded.toFloat() / progress.total.toFloat()).coerceIn(0f, 1f) else 0f
+    LinearProgressIndicator(
+     progress = { fraction },
+     modifier = Modifier.fillMaxWidth()
+    )
+    val downloadedText = formatBytes(progress.downloaded)
+    val progressText = if (knownTotal) {
+     "$downloadedText / ${formatBytes(progress.total)} · ${(fraction * 100).toInt()}%"
+    } else "$downloadedText · загрузка"
+    Text(progressText, style = MaterialTheme.typography.bodySmall)
+   }
    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-    Button(onClick = onInstall, enabled = app.apkUrl.isNotBlank()) { Text("Скачать и установить") }
+    Button(onClick = onInstall, enabled = app.apkUrl.isNotBlank() && progress == null) {
+     Text(if (progress != null) "Загрузка…" else "Скачать и установить")
+    }
     TextButton(onClick = onRemove) { Text("Удалить") }
    }
   }
  }
+}
+
+
+private fun formatBytes(bytes: Long): String {
+ if (bytes < 1024L) return "$bytes Б"
+ val kb = bytes / 1024.0
+ if (kb < 1024.0) return String.format(java.util.Locale.getDefault(), "%.1f КБ", kb)
+ val mb = kb / 1024.0
+ if (mb < 1024.0) return String.format(java.util.Locale.getDefault(), "%.1f МБ", mb)
+ return String.format(java.util.Locale.getDefault(), "%.2f ГБ", mb / 1024.0)
 }
