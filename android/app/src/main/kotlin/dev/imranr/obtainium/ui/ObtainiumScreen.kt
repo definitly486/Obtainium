@@ -210,10 +210,14 @@ private fun AppCard(app: TrackedApp, githubToken: String, progress: ApkDownloadP
    if (progress != null) {
     val knownTotal = progress.total > 0L
     val fraction = if (knownTotal) (progress.downloaded.toFloat() / progress.total.toFloat()).coerceIn(0f, 1f) else 0f
-    LinearProgressIndicator(
-     progress = { fraction },
-     modifier = Modifier.fillMaxWidth()
-    )
+    if (knownTotal) {
+     LinearProgressIndicator(
+      progress = { fraction },
+      modifier = Modifier.fillMaxWidth()
+     )
+    } else {
+     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+    }
     val downloadedText = formatBytes(progress.downloaded)
     val progressText = if (knownTotal) {
      "$downloadedText / ${formatBytes(progress.total)} · ${(fraction * 100).toInt()}%"
