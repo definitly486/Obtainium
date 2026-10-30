@@ -1,14 +1,18 @@
 package dev.imranr.obtainium.ui
 
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -21,11 +25,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import dev.imranr.obtainium.data.TrackedApp
 import java.text.DateFormat
 import java.util.Date
@@ -87,10 +96,34 @@ fun ObtainiumScreen(model: ObtainiumViewModel) {
 
 @Composable
 private fun AppCard(app: TrackedApp, onCheck: () -> Unit, onRemove: () -> Unit, onInstall: () -> Unit) {
+ val iconUrl by produceState<String?>(initialValue = null, app.sourceUrl) {
+  value = findLauncherIcon(app.sourceUrl)
+ }
  Card(Modifier.fillMaxWidth()) {
-  Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-   Text(app.name, style = MaterialTheme.typography.titleMedium)
-   Text(app.sourceUrl, style = MaterialTheme.typography.bodySmall)
+  Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+   Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    if (iconUrl != null) {
+     AsyncImage(
+      model = iconUrl,
+      contentDescription = "Иконка ${app.name}",
+      modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)),
+      contentScale = ContentScale.Crop
+     )
+    } else {
+     Box(
+      modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp))
+       .background(MaterialTheme.colorScheme.secondaryContainer),
+      contentAlignment = Alignment.Center
+     ) {
+      Text(app.name.take(1).uppercase(), style = MaterialTheme.typography.headlineMedium,
+       color = MaterialTheme.colorScheme.onSecondaryContainer)
+     }
+    }
+    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+     Text(app.name, style = MaterialTheme.typography.titleMedium)
+     Text(app.sourceUrl, style = MaterialTheme.typography.bodySmall)
+    }
+   }
    if (app.latestVersion.isNotBlank()) Text("Версия: ${app.latestVersion}")
    app.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
    if (app.lastChecked > 0) Text(
