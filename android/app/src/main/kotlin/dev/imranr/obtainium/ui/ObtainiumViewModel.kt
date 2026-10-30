@@ -10,12 +10,17 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+
+data class ApkDownloadProgress(val appId: String, val downloaded: Long, val total: Long)
 
 class ObtainiumViewModel(app: Application) : AndroidViewModel(app) {
  private val repository = AppRepository(app)
  private val installer = ApkInstaller(app)
  val apps = repository.apps.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
  val githubToken = repository.githubToken.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+ private val _downloadProgress = MutableStateFlow<ApkDownloadProgress?>(null)
+ val downloadProgress = _downloadProgress
 
  fun saveGitHubToken(token: String) {
   viewModelScope.launch { repository.setGitHubToken(token) }
@@ -37,6 +42,15 @@ class ObtainiumViewModel(app: Application) : AndroidViewModel(app) {
  }
  fun checkAll() { viewModelScope.launch { repository.checkAll() } }
  fun install(app: TrackedApp, done: (Result<Unit>) -> Unit) {
-  viewModelScope.launch { done(runCatching { installer.downloadAndInstall(app, repository.githubToken.first()) }) }
+  viewModelScope.launch {
+   _downloadProgress.value = ApkDownloadProgress(app.id, 0L, -1L)
+   val result = runCatching {
+    installer.downloadAndInstall(app, repository.githubToken.first()) { downloaded, total ->
+     _downloadProgress.value = ApkDownloadProgress(app.id, downloaded, total)
+    }
+   }
+   _downloadProgress.value = null
+   done(result)
+  }
  }
 }
