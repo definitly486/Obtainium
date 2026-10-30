@@ -28,6 +28,9 @@ class ObtainiumViewModel(app: Application) : AndroidViewModel(app) {
  fun add(url: String, done: (Result<TrackedApp>) -> Unit) {
   viewModelScope.launch { done(repository.add(url)) }
  }
+ fun update(id: String, url: String, name: String, done: (Result<TrackedApp>) -> Unit) {
+  viewModelScope.launch { done(repository.update(id, url, name)) }
+ }
  fun remove(id: String) { viewModelScope.launch { repository.remove(id) } }
  fun check(id: String, done: (Result<TrackedApp>) -> Unit = {}) {
   viewModelScope.launch { done(repository.check(id)) }
