@@ -82,8 +82,12 @@ class AppRepository(private val context: Context) {
    val url = raw.trim().let { if (it.startsWith("http://") || it.startsWith("https://")) it else "https://$it" }
    val uri = URI(url)
    require(uri.host != null && (uri.scheme == "https" || uri.scheme == "http")) { "Некорректная ссылка" }
-   val item = TrackedApp(UUID.randomUUID().toString(), url,
-    uri.path.trim('/').substringAfterLast('/').ifBlank { uri.host }.removeSuffix("."))
+   val segments = uri.path.trim('/').split('/')
+   val isGitHubReleaseUrl = uri.host in setOf("github.com", "www.github.com") &&
+    segments.size >= 5 && segments[2] == "releases" && segments[3] == "tag"
+   val appName = if (isGitHubReleaseUrl) segments[1] else
+    segments.lastOrNull().orEmpty().ifBlank { uri.host }.removeSuffix(".")
+   val item = TrackedApp(UUID.randomUUID().toString(), url, appName)
    save(current().filterNot { canonical(it.sourceUrl) == canonical(url) } + item)
    item
   }
