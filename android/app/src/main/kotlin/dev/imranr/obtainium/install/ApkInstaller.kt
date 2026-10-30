@@ -24,7 +24,7 @@ class ApkInstaller(private val context: Context) {
   .followRedirects(true)
   .build()
 
- suspend fun downloadAndInstall(app: TrackedApp, githubToken: String = "", onProgress: (Long, Long) -> Unit = { _, _ -> }) = withContext(Dispatchers.IO) {
+ suspend fun downloadAndInstall(app: TrackedApp, githubToken: String = "", onProgress: (Long, Long) -> Unit = { _, _ -> }, onPackageName: (String) -> Unit = {}) = withContext(Dispatchers.IO) {
   require(app.apkUrl.isNotBlank()) {
    "APK не найден. Нажмите «Проверить» и убедитесь, что в выбранном релизе есть APK-файл."
   }
@@ -72,6 +72,11 @@ class ApkInstaller(private val context: Context) {
     }
    }
    require(apk.length() > 2) { "Скачанный файл пуст или повреждён" }
+   val archiveInfo = context.packageManager.getPackageArchiveInfo(apk.absolutePath, 0)
+    ?: error("Не удалось прочитать пакет APK")
+   val downloadedPackageName = archiveInfo.packageName
+    ?: error("В APK отсутствует идентификатор пакета")
+   onPackageName(downloadedPackageName)
    FileInputStream(apk).use { input ->
     val signature = ByteArray(2)
     require(input.read(signature) == 2 && signature[0] == 0x50.toByte() &&
