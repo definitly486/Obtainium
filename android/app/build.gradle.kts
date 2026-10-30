@@ -61,9 +61,6 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutterVersionCode.toInt()
         versionName = flutterVersionName
-        ndk {
-            abiFilters += listOf("armeabi-v7a")
-        }
     }
 
     flavorDimensions += "default"
