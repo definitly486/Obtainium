@@ -1,8 +1,14 @@
+import java.util.Properties
+
 plugins {
  id("com.android.application")
  id("org.jetbrains.kotlin.android")
  id("org.jetbrains.kotlin.plugin.compose")
 }
+val signingProperties = Properties()
+val signingFile = rootProject.file("key.properties")
+if (signingFile.exists()) signingFile.inputStream().use { signingProperties.load(it) }
+
 android {
  namespace = "dev.imranr.obtainium"
  compileSdk = 36
@@ -13,8 +19,22 @@ android {
   versionCode = 100
   versionName = "1.0.0-kotlin"
  }
+ signingConfigs {
+  create("release") {
+   if (signingFile.exists()) {
+    keyAlias = signingProperties.getProperty("keyAlias")
+    keyPassword = signingProperties.getProperty("keyPassword")
+    storePassword = signingProperties.getProperty("storePassword")
+    storeFile = file(signingProperties.getProperty("storeFile"))
+   }
+  }
+ }
  buildTypes {
-  release { isMinifyEnabled = true; proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro") }
+  release {
+   if (signingFile.exists()) signingConfig = signingConfigs.getByName("release")
+   isMinifyEnabled = true
+   proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+  }
   debug { applicationIdSuffix = ".debug" }
  }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
