@@ -94,6 +94,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
           name: "Obtainium Kotlin ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}"
           body: |
             Native Android/Kotlin release build.
