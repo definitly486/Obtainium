@@ -2,6 +2,8 @@ name: Android Release
 
 on:
   push:
+    branches:
+      - feature/native-kotlin
     tags:
       - "v*"
   workflow_dispatch:
@@ -41,6 +43,12 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
+          if [[ "$GITHUB_REF" == "refs/heads/feature/native-kotlin" ]]; then
+            if [[ -z "${ANDROID_KEYSTORE_BASE64:-}" ]]; then
+              echo "No signing secrets on feature branch; building an unsigned validation APK."
+              exit 0
+            fi
+          fi
           : "${ANDROID_KEYSTORE_BASE64:?Missing ANDROID_KEYSTORE_BASE64}"
           : "${ANDROID_KEYSTORE_PASSWORD:?Missing ANDROID_KEYSTORE_PASSWORD}"
           : "${ANDROID_KEY_ALIAS:?Missing ANDROID_KEY_ALIAS}"
@@ -58,17 +66,31 @@ jobs:
           chmod +x android/gradlew
           ./android/gradlew -p android --no-daemon :app:assembleRelease
 
-      - name: Verify APK
+      - name: Verify and prepare APK
         run: |
           set -euo pipefail
           APK="android/app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
-          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
-          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          if [[ -f android/app/upload-keystore.jks ]]; then
+            APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+            "$APKSIGNER" verify --verbose --print-certs "$APK"
+          else
+            echo "APK is unsigned (validation build)."
+          fi
           cp "$APK" Obtainium-kotlin-armeabi-v7a-release.apk
           echo "APK_SIZE=$(du -h Obtainium-kotlin-armeabi-v7a-release.apk | cut -f1)" >> "$GITHUB_ENV"
 
+      - name: Upload branch validation APK
+        if: github.ref == 'refs/heads/feature/native-kotlin'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Obtainium-kotlin-armeabi-v7a-release
+          path: Obtainium-kotlin-armeabi-v7a-release.apk
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
@@ -76,7 +98,7 @@ jobs:
           body: |
             Native Android/Kotlin release build.
             - UI: Jetpack Compose
-            - ABI: armeabi-v7a
+            - APK: armeabi-v7a
             - APK size: ${{ env.APK_SIZE }}
             - Commit: ${{ github.sha }}
           files: Obtainium-kotlin-armeabi-v7a-release.apk
