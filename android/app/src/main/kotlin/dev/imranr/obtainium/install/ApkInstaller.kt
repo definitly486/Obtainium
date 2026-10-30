@@ -24,7 +24,7 @@ class ApkInstaller(private val context: Context) {
   .followRedirects(true)
   .build()
 
- suspend fun downloadAndInstall(app: TrackedApp, githubToken: String = "", onProgress: (Long, Long) -> Unit = { _, _ -> }, onPackageName: (String) -> Unit = {}) = withContext(Dispatchers.IO) {
+ suspend fun downloadAndInstall(app: TrackedApp, githubToken: String = "", onProgress: (Long, Long) -> Unit = { _, _ -> }, onPackageName: suspend (String) -> Unit = {}) = withContext(Dispatchers.IO) {
   require(app.apkUrl.isNotBlank()) {
    "APK не найден. Нажмите «Проверить» и убедитесь, что в выбранном релизе есть APK-файл."
   }
