@@ -7,5 +7,6 @@ data class TrackedApp(
  val latestVersion: String = "",
  val apkUrl: String = "",
  val lastChecked: Long = 0L,
- val error: String? = null
+ val error: String? = null,
+ val packageName: String = ""
 )
