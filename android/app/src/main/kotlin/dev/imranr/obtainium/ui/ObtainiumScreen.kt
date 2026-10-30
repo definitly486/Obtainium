@@ -51,6 +51,10 @@ fun ObtainiumScreen(model: ObtainiumViewModel) {
  var error by remember { mutableStateOf<String?>(null) }
  var tokenDialog by remember { mutableStateOf(false) }
  var tokenDraft by remember { mutableStateOf("") }
+ var editingApp by remember { mutableStateOf<TrackedApp?>(null) }
+ var editUrl by remember { mutableStateOf("") }
+ var editName by remember { mutableStateOf("") }
+ var editError by remember { mutableStateOf<String?>(null) }
 
  Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
   Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -69,6 +73,12 @@ fun ObtainiumScreen(model: ObtainiumViewModel) {
      AppCard(app, githubToken,
       onCheck = { model.check(app.id) },
       onRemove = { model.remove(app.id) },
+      onEdit = {
+       editingApp = app
+       editUrl = app.sourceUrl
+       editName = app.name
+       editError = null
+      },
       onInstall = {
        model.install(app) { result ->
         result.onSuccess {
@@ -103,6 +113,31 @@ fun ObtainiumScreen(model: ObtainiumViewModel) {
   dismissButton = { TextButton(onClick = { adding = false }) { Text("Отмена") } }
  )
 
+ if (editingApp != null) AlertDialog(
+  onDismissRequest = { editingApp = null },
+  title = { Text("Редактировать приложение") },
+  text = {
+   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    OutlinedTextField(value = editName, onValueChange = { editName = it },
+     label = { Text("Название") }, singleLine = true)
+    OutlinedTextField(value = editUrl, onValueChange = { editUrl = it },
+     label = { Text("URL репозитория, релиза или APK") }, singleLine = true)
+    editError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    Text("При изменении URL данные о версии и APK будут сброшены.", style = MaterialTheme.typography.bodySmall)
+   }
+  },
+  confirmButton = {
+   TextButton(onClick = {
+    val selected = editingApp ?: return@TextButton
+    model.update(selected.id, editUrl, editName) { result ->
+     result.onSuccess { editingApp = null }
+      .onFailure { editError = it.message ?: "Не удалось сохранить изменения" }
+    }
+   }) { Text("Сохранить") }
+  },
+  dismissButton = { TextButton(onClick = { editingApp = null }) { Text("Отмена") } }
+ )
+
  if (tokenDialog) AlertDialog(
   onDismissRequest = { tokenDialog = false },
   title = { Text("GitHub Personal Access Token") },
@@ -130,7 +165,7 @@ fun ObtainiumScreen(model: ObtainiumViewModel) {
 }
 
 @Composable
-private fun AppCard(app: TrackedApp, githubToken: String, onCheck: () -> Unit, onRemove: () -> Unit, onInstall: () -> Unit) {
+private fun AppCard(app: TrackedApp, githubToken: String, onCheck: () -> Unit, onRemove: () -> Unit, onEdit: () -> Unit, onInstall: () -> Unit) {
  val context = LocalContext.current
  val iconPath by produceState<String?>(initialValue = null, app.sourceUrl, githubToken) {
   value = findLauncherIcon(context, app.sourceUrl, githubToken)
@@ -168,6 +203,9 @@ private fun AppCard(app: TrackedApp, githubToken: String, onCheck: () -> Unit, o
    )
    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
     OutlinedButton(onClick = onCheck) { Text("Проверить") }
+    OutlinedButton(onClick = onEdit) { Text("Редактировать") }
+   }
+   Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
     Button(onClick = onInstall, enabled = app.apkUrl.isNotBlank()) { Text("Скачать и установить") }
     TextButton(onClick = onRemove) { Text("Удалить") }
    }
