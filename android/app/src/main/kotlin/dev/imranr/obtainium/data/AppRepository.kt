@@ -149,25 +149,65 @@ class AppRepository(private val context: Context) {
  suspend fun checkAll() { current().forEach { check(it.id) } }
 
  private fun checkGitHub(app: TrackedApp, token: String): TrackedApp {
-  val (owner, repo) = repositoryPath(app)
-  val segments = URI(app.sourceUrl).path.trim('/').split('/')
-  // Accept both repository URLs and direct GitHub release/tag URLs:
-  // /owner/repo and /owner/repo/releases/tag/<tag>
+  val uri = URI(app.sourceUrl)
+  val segments = uri.path.split('/').filter { it.isNotBlank() }
+  require(segments.size >= 2) { "Нужна ссылка на GitHub-репозиторий или APK" }
+  val owner = segments[0]
+  val repo = segments[1].removeSuffix(".")
+
+  // A direct GitHub release asset URL can be used as the app source:
+  // /owner/repo/releases/download/<tag>/<asset>.apk
+  if (segments.size >= 6 && segments[2] == "releases" &&
+   segments[3] == "download" && segments.last().substringBefore('?').endsWith(".apk", true)) {
+   val tag = segments[4]
+   return app.copy(latestVersion = tag, apkUrl = app.sourceUrl,
+    lastChecked = System.currentTimeMillis(), error = null)
+  }
+
   val releaseTag = if (segments.size >= 5 &&
    segments[2] == "releases" && segments[3] == "tag") segments.drop(4).joinToString("/") else null
-  val releaseEndpoint = if (!releaseTag.isNullOrBlank()) {
+
+  val release = if (!releaseTag.isNullOrBlank()) {
    val encodedTag = URLEncoder.encode(releaseTag, "UTF-8").replace("+", "%20")
-   "https://api.github.com/repos/$owner/$repo/releases/tags/$encodedTag"
+   getJson("https://api.github.com/repos/$owner/$repo/releases/tags/$encodedTag",
+    "application/vnd.github+json", token)
   } else {
-   "https://api.github.com/repos/$owner/$repo/releases/latest"
+   try {
+    getJson("https://api.github.com/repos/$owner/$repo/releases/latest",
+     "application/vnd.github+json", token)
+   } catch (e: Exception) {
+    // /releases/latest excludes prereleases. Many projects publish APKs
+    // only in GitHub Actions prereleases, so inspect the recent releases too.
+    if (!e.message.orEmpty().contains("HTTP 404")) throw e
+    val list = getJsonArray("https://api.github.com/repos/$owner/$repo/releases?per_page=30", token)
+    var found: JSONObject? = null
+    for (i in 0 until list.length()) {
+     val candidate = list.optJSONObject(i) ?: continue
+     if (candidate.optBoolean("draft")) continue
+     if (findApk(candidate.optJSONArray("assets") ?: JSONArray()).isNotBlank()) {
+      found = candidate
+      break
+     }
+    }
+    found ?: throw IllegalStateException("В последних релизах GitHub APK не найден")
+   }
   }
-  val json = getJson(releaseEndpoint, "application/vnd.github+json", token)
-  val assets = json.optJSONArray("assets") ?: JSONArray()
-  val apk = findApk(assets)
-  return app.copy(name = json.optString("name").ifBlank { app.name },
-   latestVersion = json.optString("tag_name"), apkUrl = apk,
+
+  val apk = findApk(release.optJSONArray("assets") ?: JSONArray())
+  return app.copy(name = release.optString("name").ifBlank { app.name },
+   latestVersion = release.optString("tag_name"), apkUrl = apk,
    lastChecked = System.currentTimeMillis(),
    error = if (apk.isBlank()) "Релиз найден, но APK среди вложений нет" else null)
+ }
+
+ private fun getJsonArray(url: String, token: String = ""): JSONArray {
+  val builder = Request.Builder().url(url).header("User-Agent", "Obtainium-Kotlin")
+   .header("Accept", "application/vnd.github+json")
+  if (token.isNotBlank()) builder.header("Authorization", "Bearer $token")
+  http.newCall(builder.build()).execute().use { response ->
+   if (!response.isSuccessful) error("Ошибка API: HTTP ${response.code} ($url).")
+   return JSONArray(response.body?.string().orEmpty())
+  }
  }
 
  private fun checkCodeberg(app: TrackedApp): TrackedApp {
