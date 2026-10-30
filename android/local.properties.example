@@ -1,0 +1,8 @@
+## This file must *NOT* be checked into Version Control Systems,
+# as it contains information specific to your local configuration.
+#
+# Location of the Flutter SDK. Required for building.
+flutter.sdk=/path/to/your/flutter
+#
+# Optionally specify Android SDK location if not in default place:
+# sdk.dir=/path/to/Android/sdk
