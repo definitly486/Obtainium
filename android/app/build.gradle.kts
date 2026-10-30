@@ -18,6 +18,7 @@ android {
   targetSdk = 35
   versionCode = 100
   versionName = "1.0.0-kotlin"
+  ndk { abiFilters += "armeabi-v7a" }
  }
  signingConfigs {
   create("release") {
