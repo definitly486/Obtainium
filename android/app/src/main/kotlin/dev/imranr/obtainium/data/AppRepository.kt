@@ -34,7 +34,7 @@ class AppRepository(private val context: Context) {
   "https://github.com/definitly486/comaps/",
   "https://github.com/definitly486/OsmAnd-fork/",
   "https://github.com/definitly486/NewPipe-fork/",
-  "https://github.com/definitly486/TemperatureMap-Android./",
+  "https://github.com/definitly486/TemperatureMap-Android/",
   "https://github.com/FossifyOrg/Phone/",
   "https://github.com/FossifyOrg/Contacts/",
   "https://github.com/FossifyOrg/Messages/",
