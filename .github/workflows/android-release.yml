@@ -33,7 +33,11 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-          cache: gradle
+
+      - name: Set up Gradle 9.4.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.4.1"
 
       - name: Configure signing
         env:
@@ -43,11 +47,9 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_REF" == "refs/heads/feature/native-kotlin" ]]; then
-            if [[ -z "${ANDROID_KEYSTORE_BASE64:-}" ]]; then
-              echo "No signing secrets on feature branch; building an unsigned validation APK."
-              exit 0
-            fi
+          if [[ "$GITHUB_REF" == "refs/heads/feature/native-kotlin" && -z "${ANDROID_KEYSTORE_BASE64:-}" ]]; then
+            echo "No signing secrets on feature branch; building unsigned validation APK."
+            exit 0
           fi
           : "${ANDROID_KEYSTORE_BASE64:?Missing ANDROID_KEYSTORE_BASE64}"
           : "${ANDROID_KEYSTORE_PASSWORD:?Missing ANDROID_KEYSTORE_PASSWORD}"
@@ -62,9 +64,7 @@ jobs:
           EOF
 
       - name: Build Release
-        run: |
-          chmod +x android/gradlew
-          ./android/gradlew -p android --no-daemon :app:assembleRelease
+        run: gradle -p android --no-daemon :app:assembleRelease
 
       - name: Verify and prepare APK
         run: |
