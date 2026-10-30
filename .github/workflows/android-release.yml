@@ -1,0 +1,116 @@
+name: Android Release APK
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Тег релиза, например v1.7.3"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build signed armeabi-v7a Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository and submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Show Flutter and Dart versions
+        run: |
+          flutter --version
+          dart --version
+
+      - name: Configure Android release signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          : "${ANDROID_KEYSTORE_BASE64:?Missing ANDROID_KEYSTORE_BASE64 secret}"
+          : "${ANDROID_KEYSTORE_PASSWORD:?Missing ANDROID_KEYSTORE_PASSWORD secret}"
+          : "${ANDROID_KEY_ALIAS:?Missing ANDROID_KEY_ALIAS secret}"
+          : "${ANDROID_KEY_PASSWORD:?Missing ANDROID_KEY_PASSWORD secret}"
+
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          test -s android/app/upload-keystore.jks
+
+          cat > android/key.properties <<EOF
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyPassword=$ANDROID_KEY_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          storeFile=app/upload-keystore.jks
+          EOF
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Build signed Release APK (armeabi-v7a)
+        run: |
+          flutter build apk \
+            --release \
+            --flavor normal \
+            --target-platform android-arm \
+            --split-per-abi
+
+      - name: Verify and prepare APK
+        run: |
+          set -euo pipefail
+
+          APK="build/app/outputs/flutter-apk/app-armeabi-v7a-normal-release.apk"
+          test -s "$APK"
+
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+
+          echo "APK_SIZE=$(du -h "$APK" | cut -f1)" >> "$GITHUB_ENV"
+          cp "$APK" Obtainium-ru-armeabi-v7a-release.apk
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+          name: "Obtainium ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}"
+          body: |
+            Release-сборка Obtainium.
+
+            - Тип: Release (подписанный APK)
+            - Архитектура: armeabi-v7a (32-bit ARM)
+            - Flavor: normal
+            - Версия приложения: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+            - Commit: ${{ github.sha }}
+            - Размер APK: ${{ env.APK_SIZE }}
+
+          files: Obtainium-ru-armeabi-v7a-release.apk
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: true
