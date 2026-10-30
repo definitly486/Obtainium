@@ -1,5 +1,6 @@
 package dev.imranr.obtainium.ui
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,6 +24,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import dev.imranr.obtainium.data.TrackedApp
 import java.text.DateFormat
@@ -31,6 +33,7 @@ import java.util.Date
 @Composable
 fun ObtainiumScreen(model: ObtainiumViewModel) {
  val apps by model.apps.collectAsState()
+ val context = LocalContext.current
  var adding by remember { mutableStateOf(false) }
  var url by remember { mutableStateOf("") }
  var error by remember { mutableStateOf<String?>(null) }
@@ -48,7 +51,14 @@ fun ObtainiumScreen(model: ObtainiumViewModel) {
   } else {
    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     items(apps, key = { it.id }) { app ->
-     AppCard(app, { model.check(app.id) }, { model.remove(app.id) })
+     AppCard(app,
+      onCheck = { model.check(app.id) },
+      onRemove = { model.remove(app.id) },
+      onInstall = {
+       model.install(app) { result ->
+        result.onFailure { Toast.makeText(context, it.message ?: "Ошибка загрузки", Toast.LENGTH_LONG).show() }
+       }
+      })
     }
    }
   }
@@ -76,7 +86,7 @@ fun ObtainiumScreen(model: ObtainiumViewModel) {
 }
 
 @Composable
-private fun AppCard(app: TrackedApp, onCheck: () -> Unit, onRemove: () -> Unit) {
+private fun AppCard(app: TrackedApp, onCheck: () -> Unit, onRemove: () -> Unit, onInstall: () -> Unit) {
  Card(Modifier.fillMaxWidth()) {
   Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
    Text(app.name, style = MaterialTheme.typography.titleMedium)
@@ -89,6 +99,7 @@ private fun AppCard(app: TrackedApp, onCheck: () -> Unit, onRemove: () -> Unit) 
    )
    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
     OutlinedButton(onClick = onCheck) { Text("Проверить") }
+    Button(onClick = onInstall, enabled = app.apkUrl.isNotBlank()) { Text("Скачать и установить") }
     TextButton(onClick = onRemove) { Text("Удалить") }
    }
   }
