@@ -50,7 +50,7 @@ class ObtainiumViewModel(app: Application) : AndroidViewModel(app) {
       _downloadProgress.value = ApkDownloadProgress(app.id, downloaded, total)
      },
      onPackageName = { packageName ->
-      kotlinx.coroutines.runBlocking { repository.setPackageName(app.id, packageName) }
+      repository.setPackageName(app.id, packageName)
      }
     )
    }
