@@ -1,24 +1,7 @@
 import 'package:obtainium/providers/settings_provider.dart';
 import 'package:obtainium/providers/source_provider.dart';
-import 'package:obtainium/app_sources/samsunggalaxystore.dart';
 
 String installerPackageNameForApp(App app, {required bool googlePlayDefault}) {
-  var isGalaxyStore = false;
-  if (app.settings.getBool('shizukuPretendToBeGalaxyStore')) {
-    try {
-      isGalaxyStore =
-          SourceProvider().getSource(
-                app.url,
-                overrideSource: app.overrideSource,
-              )
-              is SamsungGalaxyStore;
-    } catch (_) {
-      isGalaxyStore = false;
-    }
-  }
-  if (isGalaxyStore) {
-    return 'com.sec.android.app.samsungapps';
-  }
   return googlePlayDefault ||
           app.settings.getBool('shizukuPretendToBeGooglePlay')
       ? 'com.android.vending'
