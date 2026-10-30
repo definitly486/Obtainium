@@ -45,9 +45,14 @@ class ObtainiumViewModel(app: Application) : AndroidViewModel(app) {
   viewModelScope.launch {
    _downloadProgress.value = ApkDownloadProgress(app.id, 0L, -1L)
    val result = runCatching {
-    installer.downloadAndInstall(app, repository.githubToken.first()) { downloaded, total ->
-     _downloadProgress.value = ApkDownloadProgress(app.id, downloaded, total)
-    }
+    installer.downloadAndInstall(app, repository.githubToken.first(),
+     onProgress = { downloaded, total ->
+      _downloadProgress.value = ApkDownloadProgress(app.id, downloaded, total)
+     },
+     onPackageName = { packageName ->
+      kotlinx.coroutines.runBlocking { repository.setPackageName(app.id, packageName) }
+     }
+    )
    }
    _downloadProgress.value = null
    done(result)
