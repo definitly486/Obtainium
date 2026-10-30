@@ -51,15 +51,21 @@ internal suspend fun findLauncherIcon(sourceUrl: String, token: String = ""): St
             if (item.optString("type") != "blob") continue
             val path = item.optString("path")
             val lower = path.lowercase()
-            val raster = lower.endsWith(".png") || lower.endsWith(".webp")
-            if (!raster || !lower.contains("/res/") && !lower.startsWith("res/")) continue
-            if (!lower.contains("mipmap") && !lower.contains("drawable")) continue
-            if (!lower.contains("ic_launcher") && !lower.contains("launcher")) continue
-            candidates += path
+            val raster = lower.endsWith(".png") || lower.endsWith(".webp") || lower.endsWith(".jpg") || lower.endsWith(".jpeg")
+            if (!raster) continue
+            val androidLauncher = (lower.contains("/res/") || lower.startsWith("res/")) &&
+                (lower.contains("mipmap") || lower.contains("drawable")) &&
+                (lower.contains("ic_launcher") || lower.contains("launcher"))
+            val fileName = lower.substringAfterLast("/")
+            val metadataIcon = (fileName.startsWith("icon") || fileName.startsWith("logo") ||
+                fileName.startsWith("app_icon") || fileName.startsWith("ic_launcher")) &&
+                (lower.contains("fastlane/metadata") || lower.contains("/assets/") ||
+                    lower.startsWith("assets/") || lower.contains("/images/"))
+            if (androidLauncher || metadataIcon) candidates += path
         }
         val selected = candidates.minByOrNull { path ->
             val p = path.lowercase()
-            when {
+            val density = when {
                 p.contains("xxxhdpi") -> 0
                 p.contains("xxhdpi") -> 1
                 p.contains("xhdpi") -> 2
@@ -67,7 +73,9 @@ internal suspend fun findLauncherIcon(sourceUrl: String, token: String = ""): St
                 p.contains("mdpi") -> 4
                 p.contains("anydpi") -> 5
                 else -> 6
-            } * 10 + if (p.contains("round")) 1 else 0
+            }
+            (if (p.contains("/res/") || p.startsWith("res/")) 0 else 100) +
+                density * 10 + if (p.contains("round")) 1 else 0
         } ?: return@runCatching null
         "https://raw.githubusercontent.com/$owner/$repo/$defaultBranch/$selected"
     }.getOrNull()
