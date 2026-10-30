@@ -15,6 +15,7 @@ import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URI
+import java.net.URLEncoder
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
@@ -113,7 +114,18 @@ class AppRepository(private val context: Context) {
 
  private fun checkGitHub(app: TrackedApp, token: String): TrackedApp {
   val (owner, repo) = repositoryPath(app)
-  val json = getJson("https://api.github.com/repos/$owner/$repo/releases/latest", "application/vnd.github+json", token)
+  val segments = URI(app.sourceUrl).path.trim('/').split('/')
+  // Accept both repository URLs and direct GitHub release/tag URLs:
+  // /owner/repo and /owner/repo/releases/tag/<tag>
+  val releaseTag = if (segments.size >= 5 &&
+   segments[2] == "releases" && segments[3] == "tag") segments.drop(4).joinToString("/") else null
+  val releaseEndpoint = if (!releaseTag.isNullOrBlank()) {
+   val encodedTag = URLEncoder.encode(releaseTag, "UTF-8").replace("+", "%20")
+   "https://api.github.com/repos/$owner/$repo/releases/tags/$encodedTag"
+  } else {
+   "https://api.github.com/repos/$owner/$repo/releases/latest"
+  }
+  val json = getJson(releaseEndpoint, "application/vnd.github+json", token)
   val assets = json.optJSONArray("assets") ?: JSONArray()
   val apk = findApk(assets)
   return app.copy(name = json.optString("name").ifBlank { app.name },
