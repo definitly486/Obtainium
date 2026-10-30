@@ -53,7 +53,7 @@ jobs:
 
       - name: Verify APK
         run: |
-          APK="build/app/outputs/flutter-apk/app-armeabi-v7a-debug.apk"
+          APK="build/app/outputs/flutter-apk/app-armeabi-v7a-normal-debug.apk"
           test -s "$APK"
           echo "APK_SIZE=$(du -h "$APK" | cut -f1)" >> "$GITHUB_ENV"
           cp "$APK" Obtainium-ru-armeabi-v7a-debug.apk
