@@ -23,9 +23,11 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -34,6 +36,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import coil.compose.AsyncImage
@@ -169,6 +174,22 @@ fun ObtainiumScreen(model: ObtainiumViewModel) {
 @Composable
 private fun AppCard(app: TrackedApp, githubToken: String, progress: ApkDownloadProgress?, onCheck: () -> Unit, onRemove: () -> Unit, onEdit: () -> Unit, onInstall: () -> Unit) {
  val context = LocalContext.current
+ val lifecycle = (context as? LifecycleOwner)?.lifecycle
+ var resumeTick by remember { mutableIntStateOf(0) }
+ DisposableEffect(lifecycle) {
+  val observer = LifecycleEventObserver { _, event ->
+   if (event == Lifecycle.Event.ON_RESUME) resumeTick++
+  }
+  lifecycle?.addObserver(observer)
+  onDispose { lifecycle?.removeObserver(observer) }
+ }
+ val installed by produceState(initialValue = false, app.packageName, resumeTick) {
+  value = if (app.packageName.isBlank()) false else runCatching {
+   @Suppress("DEPRECATION")
+   context.packageManager.getPackageInfo(app.packageName, 0)
+   true
+  }.getOrDefault(false)
+ }
  val iconPath by produceState<String?>(initialValue = null, app.sourceUrl, githubToken) {
   value = findLauncherIcon(context, app.sourceUrl, githubToken)
  }
@@ -226,7 +247,7 @@ private fun AppCard(app: TrackedApp, githubToken: String, progress: ApkDownloadP
    }
    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
     Button(onClick = onInstall, enabled = app.apkUrl.isNotBlank() && progress == null) {
-     Text(if (progress != null) "Загрузка…" else "Скачать и установить")
+     Text(if (progress != null) "Загрузка…" else if (installed) "Обновить" else "Скачать и установить")
     }
     TextButton(onClick = onRemove) { Text("Удалить") }
    }
