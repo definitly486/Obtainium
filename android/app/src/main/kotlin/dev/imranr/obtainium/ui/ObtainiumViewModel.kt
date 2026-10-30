@@ -14,6 +14,11 @@ class ObtainiumViewModel(app: Application) : AndroidViewModel(app) {
  private val repository = AppRepository(app)
  private val installer = ApkInstaller(app)
  val apps = repository.apps.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+ val githubToken = repository.githubToken.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+
+ fun saveGitHubToken(token: String) {
+  viewModelScope.launch { repository.setGitHubToken(token) }
+ }
 
  init {
   viewModelScope.launch { repository.ensureDefaultApps() }
