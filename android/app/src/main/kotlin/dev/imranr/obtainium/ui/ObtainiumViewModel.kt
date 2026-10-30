@@ -5,12 +5,14 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.imranr.obtainium.data.AppRepository
 import dev.imranr.obtainium.data.TrackedApp
+import dev.imranr.obtainium.install.ApkInstaller
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class ObtainiumViewModel(app: Application) : AndroidViewModel(app) {
  private val repository = AppRepository(app)
+ private val installer = ApkInstaller(app)
  val apps = repository.apps.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
  fun add(url: String, done: (Result<TrackedApp>) -> Unit) {
@@ -21,4 +23,7 @@ class ObtainiumViewModel(app: Application) : AndroidViewModel(app) {
   viewModelScope.launch { done(repository.check(id)) }
  }
  fun checkAll() { viewModelScope.launch { repository.checkAll() } }
+ fun install(app: TrackedApp, done: (Result<Unit>) -> Unit) {
+  viewModelScope.launch { done(runCatching { installer.downloadAndInstall(app) }) }
+ }
 }
