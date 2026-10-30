@@ -15,6 +15,10 @@ class ObtainiumViewModel(app: Application) : AndroidViewModel(app) {
  private val installer = ApkInstaller(app)
  val apps = repository.apps.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+ init {
+  viewModelScope.launch { repository.ensureDefaultApps() }
+ }
+
  fun add(url: String, done: (Result<TrackedApp>) -> Unit) {
   viewModelScope.launch { done(repository.add(url)) }
  }
