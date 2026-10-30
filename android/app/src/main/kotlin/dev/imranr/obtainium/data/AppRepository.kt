@@ -94,6 +94,37 @@ class AppRepository(private val context: Context) {
   }
  }
 
+
+ suspend fun update(id: String, rawUrl: String, rawName: String): Result<TrackedApp> = withContext(Dispatchers.IO) {
+  runCatching {
+   val url = rawUrl.trim().let {
+    if (it.startsWith("http://") || it.startsWith("https://")) it else "https://$it"
+   }
+   val uri = URI(url)
+   require(uri.host != null && uri.scheme in setOf("http", "https")) { "Некорректная ссылка" }
+   val old = current().firstOrNull { it.id == id } ?: error("Приложение не найдено")
+   require(current().none { it.id != id && canonical(it.sourceUrl) == canonical(url) }) {
+    "Такая ссылка уже добавлена"
+   }
+   val name = rawName.trim().ifBlank {
+    val parts = uri.path.split('/').filter { it.isNotBlank() }
+    if (uri.host?.lowercase() in setOf("github.com", "www.github.com") && parts.size >= 2) parts[1]
+    else parts.lastOrNull() ?: uri.host.orEmpty()
+   }
+   val changedSource = canonical(old.sourceUrl) != canonical(url)
+   val updated = old.copy(
+    sourceUrl = url,
+    name = name,
+    latestVersion = if (changedSource) "" else old.latestVersion,
+    apkUrl = if (changedSource) "" else old.apkUrl,
+    lastChecked = if (changedSource) 0L else old.lastChecked,
+    error = null
+   )
+   save(current().map { if (it.id == id) updated else it })
+   updated
+  }
+ }
+
  suspend fun remove(id: String) { save(current().filterNot { it.id == id }) }
 
  suspend fun check(id: String): Result<TrackedApp> = withContext(Dispatchers.IO) {
