@@ -183,11 +183,34 @@ private fun AppCard(app: TrackedApp, githubToken: String, progress: ApkDownloadP
   lifecycle?.addObserver(observer)
   onDispose { lifecycle?.removeObserver(observer) }
  }
- val installed by produceState(initialValue = false, app.packageName, resumeTick) {
-  value = if (app.packageName.isBlank()) false else runCatching {
-   @Suppress("DEPRECATION")
-   context.packageManager.getPackageInfo(app.packageName, 0)
-   true
+ val installed by produceState(initialValue = false, app.packageName, app.name, app.sourceUrl, resumeTick) {
+  value = runCatching {
+   val pm = context.packageManager
+   // Exact package ID is authoritative once it has been learned from an APK.
+   if (app.packageName.isNotBlank()) {
+    try {
+     @Suppress("DEPRECATION")
+     pm.getPackageInfo(app.packageName, 0)
+     true
+    } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
+     false
+    }
+   } else {
+    // Existing installs predate packageName persistence. Match their visible
+    // launcher label to the tracked repository name (e.g. "OsmAnd-fork" -> "OsmAnd").
+    fun normalize(value: String): String = value.lowercase(java.util.Locale.ROOT)
+     .replace(Regex("(?:[-_ ]?(?:fork|android|app))+$"), "")
+     .filter { it.isLetterOrDigit() }
+    val trackedNames = listOf(app.name, runCatching {
+     java.net.URI(app.sourceUrl).path.split('/').filter { it.isNotBlank() }.getOrNull(1).orEmpty()
+    }.getOrDefault(""))
+     .map(::normalize).filter { it.length >= 4 }.toSet()
+    @Suppress("DEPRECATION")
+    pm.getInstalledApplications(0).any { info ->
+     val label = normalize(pm.getApplicationLabel(info).toString())
+     label.isNotBlank() && label in trackedNames
+    }
+   }
   }.getOrDefault(false)
  }
  val iconPath by produceState<String?>(initialValue = null, app.sourceUrl, githubToken) {
