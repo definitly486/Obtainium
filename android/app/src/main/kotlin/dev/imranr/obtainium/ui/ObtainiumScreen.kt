@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import coil.compose.AsyncImage
 import dev.imranr.obtainium.data.TrackedApp
+import java.io.File
 import java.text.DateFormat
 import java.util.Date
 
@@ -126,15 +127,16 @@ fun ObtainiumScreen(model: ObtainiumViewModel) {
 
 @Composable
 private fun AppCard(app: TrackedApp, githubToken: String, onCheck: () -> Unit, onRemove: () -> Unit, onInstall: () -> Unit) {
- val iconUrl by produceState<String?>(initialValue = null, app.sourceUrl, githubToken) {
-  value = findLauncherIcon(app.sourceUrl, githubToken)
+ val context = LocalContext.current
+ val iconPath by produceState<String?>(initialValue = null, app.sourceUrl, githubToken) {
+  value = findLauncherIcon(context, app.sourceUrl, githubToken)
  }
  Card(Modifier.fillMaxWidth()) {
   Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-    if (iconUrl != null) {
+    if (iconPath != null) {
      AsyncImage(
-      model = iconUrl,
+      model = File(iconPath!!),
       contentDescription = "Иконка ${app.name}",
       modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)),
       contentScale = ContentScale.Crop
