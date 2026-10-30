@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import dev.imranr.obtainium.data.AppRepository
 import dev.imranr.obtainium.data.TrackedApp
 import dev.imranr.obtainium.install.ApkInstaller
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -33,6 +34,6 @@ class ObtainiumViewModel(app: Application) : AndroidViewModel(app) {
  }
  fun checkAll() { viewModelScope.launch { repository.checkAll() } }
  fun install(app: TrackedApp, done: (Result<Unit>) -> Unit) {
-  viewModelScope.launch { done(runCatching { installer.downloadAndInstall(app) }) }
+  viewModelScope.launch { done(runCatching { installer.downloadAndInstall(app, repository.githubToken.first()) }) }
  }
 }
