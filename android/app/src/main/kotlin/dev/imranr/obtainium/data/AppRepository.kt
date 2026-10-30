@@ -125,6 +125,12 @@ class AppRepository(private val context: Context) {
   }
  }
 
+ suspend fun setPackageName(id: String, packageName: String) {
+  val cleaned = packageName.trim()
+  if (cleaned.isBlank()) return
+  save(current().map { if (it.id == id) it.copy(packageName = cleaned) else it })
+ }
+
  suspend fun remove(id: String) { save(current().filterNot { it.id == id }) }
 
  suspend fun check(id: String): Result<TrackedApp> = withContext(Dispatchers.IO) {
@@ -284,7 +290,7 @@ class AppRepository(private val context: Context) {
   items.forEach { a -> json.put(JSONObject().apply {
    put("id", a.id); put("url", a.sourceUrl); put("name", a.name)
    put("version", a.latestVersion); put("apk", a.apkUrl); put("checked", a.lastChecked)
-   put("error", a.error ?: JSONObject.NULL)
+   put("error", a.error ?: JSONObject.NULL); put("packageName", a.packageName)
   }) }
   return json.toString()
  }
@@ -295,7 +301,7 @@ class AppRepository(private val context: Context) {
    val o = arr.getJSONObject(i)
    TrackedApp(o.getString("id"), o.getString("url"), o.optString("name"),
     o.optString("version"), o.optString("apk"), o.optLong("checked"),
-    o.optString("error").takeUnless { it.isBlank() || it == "null" })
+    o.optString("error").takeUnless { it.isBlank() || it == "null" }, o.optString("packageName"))
   }
  }.getOrDefault(emptyList())
 }
