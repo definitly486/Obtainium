@@ -23,6 +23,7 @@ private val Context.appStore by preferencesDataStore("tracked_apps")
 class AppRepository(private val context: Context) {
  private val key = stringPreferencesKey("apps")
  private val defaultsAddedKey = booleanPreferencesKey("default_apps_added")
+ private val githubTokenKey = stringPreferencesKey("github_personal_access_token")
  private val http = OkHttpClient.Builder().connectTimeout(20, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build()
  private val defaultSources = listOf(
   "https://github.com/barbeau/gpstest/",
@@ -48,6 +49,14 @@ class AppRepository(private val context: Context) {
  )
 
  val apps: Flow<List<TrackedApp>> = context.appStore.data.map { decode(it[key].orEmpty()) }
+ val githubToken: Flow<String> = context.appStore.data.map { it[githubTokenKey].orEmpty() }
+
+ suspend fun setGitHubToken(token: String) {
+  context.appStore.edit { prefs ->
+   val cleaned = token.trim()
+   if (cleaned.isBlank()) prefs.remove(githubTokenKey) else prefs[githubTokenKey] = cleaned
+  }
+ }
 
  suspend fun ensureDefaultApps() {
   context.appStore.edit { prefs ->
@@ -84,9 +93,10 @@ class AppRepository(private val context: Context) {
  suspend fun check(id: String): Result<TrackedApp> = withContext(Dispatchers.IO) {
   runCatching {
    val old = current().firstOrNull { it.id == id } ?: error("Приложение не найдено")
+   val token = context.appStore.data.map { it[githubTokenKey].orEmpty() }.first()
    val host = URI(old.sourceUrl).host.lowercase()
    val updated = when (host) {
-    "github.com", "www.github.com" -> checkGitHub(old)
+    "github.com", "www.github.com" -> checkGitHub(old, token)
     "codeberg.org", "www.codeberg.org" -> checkCodeberg(old)
     else -> checkDirect(old)
    }
@@ -101,9 +111,9 @@ class AppRepository(private val context: Context) {
 
  suspend fun checkAll() { current().forEach { check(it.id) } }
 
- private fun checkGitHub(app: TrackedApp): TrackedApp {
+ private fun checkGitHub(app: TrackedApp, token: String): TrackedApp {
   val (owner, repo) = repositoryPath(app)
-  val json = getJson("https://api.github.com/repos/$owner/$repo/releases/latest", "application/vnd.github+json")
+  val json = getJson("https://api.github.com/repos/$owner/$repo/releases/latest", "application/vnd.github+json", token)
   val assets = json.optJSONArray("assets") ?: JSONArray()
   val apk = findApk(assets)
   return app.copy(name = json.optString("name").ifBlank { app.name },
@@ -135,11 +145,19 @@ class AppRepository(private val context: Context) {
   return p[0] to p[1].removeSuffix(".")
  }
 
- private fun getJson(url: String, accept: String? = null): JSONObject {
+ private fun getJson(url: String, accept: String? = null, token: String = ""): JSONObject {
   val builder = Request.Builder().url(url).header("User-Agent", "Obtainium-Kotlin")
   if (accept != null) builder.header("Accept", accept)
+  if (token.isNotBlank()) builder.header("Authorization", "Bearer $token")
   http.newCall(builder.build()).execute().use { response ->
-   if (!response.isSuccessful) error("Ошибка API: HTTP ${response.code} ($url)")
+   if (!response.isSuccessful) {
+    val remaining = response.header("X-RateLimit-Remaining")
+    val reset = response.header("X-RateLimit-Reset")
+    val hint = if (response.code == 403 && remaining == "0") {
+     " Лимит GitHub API исчерпан. Сброс Unix: " + reset + ". Добавьте PAT в настройках."
+    } else if (response.code == 403) " Проверьте PAT и права доступа." else ""
+    error("Ошибка API: HTTP " + response.code + " (" + url + ")." + hint)
+   }
    return JSONObject(response.body?.string().orEmpty())
   }
  }
