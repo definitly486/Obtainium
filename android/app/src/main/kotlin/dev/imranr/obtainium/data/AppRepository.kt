@@ -82,9 +82,10 @@ class AppRepository(private val context: Context) {
    val url = raw.trim().let { if (it.startsWith("http://") || it.startsWith("https://")) it else "https://$it" }
    val uri = URI(url)
    require(uri.host != null && (uri.scheme == "https" || uri.scheme == "http")) { "Некорректная ссылка" }
-   val segments = uri.path.trim('/').split('/')
-   val isGitHubReleaseUrl = uri.host in setOf("github.com", "www.github.com") &&
-    segments.size >= 5 && segments[2] == "releases" && segments[3] == "tag"
+   val segments = uri.path.split('/').filter { it.isNotBlank() }
+   val isGitHubReleaseUrl = uri.host?.lowercase() in setOf("github.com", "www.github.com") &&
+    segments.size >= 5 && segments[2].equals("releases", ignoreCase = true) &&
+    segments[3].equals("tag", ignoreCase = true)
    val appName = if (isGitHubReleaseUrl) segments[1] else
     segments.lastOrNull().orEmpty().ifBlank { uri.host }.removeSuffix(".")
    val item = TrackedApp(UUID.randomUUID().toString(), url, appName)
@@ -156,8 +157,9 @@ class AppRepository(private val context: Context) {
  }
 
  private fun repositoryPath(app: TrackedApp): Pair<String, String> {
-  val p = URI(app.sourceUrl).path.trim('/').split('/')
-  require(p.size >= 2) { "Нужна ссылка на репозиторий" }
+  val p = URI(app.sourceUrl).path.split('/').filter { it.isNotBlank() }
+  require(p.size >= 2) { "Нужна ссылка на GitHub-репозиторий" }
+  require(p[0] !in setOf("login", "settings", "explore")) { "Ссылка не является ссылкой на репозиторий GitHub" }
   return p[0] to p[1].removeSuffix(".")
  }
 
@@ -180,8 +182,12 @@ class AppRepository(private val context: Context) {
 
  private fun findApk(assets: JSONArray): String {
   for (i in 0 until assets.length()) {
-   val candidate = assets.optJSONObject(i)?.optString("browser_download_url").orEmpty()
-   if (candidate.endsWith(".apk", true)) return candidate
+   val asset = assets.optJSONObject(i) ?: continue
+   val name = asset.optString("name")
+   val candidate = asset.optString("browser_download_url")
+   if (name.endsWith(".apk", true) || candidate.substringBefore('?').endsWith(".apk", true)) {
+    if (candidate.startsWith("https://")) return candidate
+   }
   }
   return ""
  }
