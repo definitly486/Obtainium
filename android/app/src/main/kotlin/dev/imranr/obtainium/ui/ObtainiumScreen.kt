@@ -71,7 +71,11 @@ fun ObtainiumScreen(model: ObtainiumViewModel) {
       onRemove = { model.remove(app.id) },
       onInstall = {
        model.install(app) { result ->
-        result.onFailure { Toast.makeText(context, it.message ?: "Ошибка загрузки", Toast.LENGTH_LONG).show() }
+        result.onSuccess {
+         Toast.makeText(context, "APK загружен. Подтвердите установку в системном окне.", Toast.LENGTH_LONG).show()
+        }.onFailure {
+         Toast.makeText(context, it.message ?: "Ошибка загрузки или установки", Toast.LENGTH_LONG).show()
+        }
        }
       })
     }
