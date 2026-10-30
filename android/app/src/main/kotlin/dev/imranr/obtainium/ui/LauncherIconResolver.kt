@@ -69,6 +69,6 @@ internal suspend fun findLauncherIcon(sourceUrl: String, token: String = ""): St
                 else -> 6
             } * 10 + if (p.contains("round")) 1 else 0
         } ?: return@runCatching null
-        "https://raw.githubusercontent.com/$owner/$repo/HEAD/$selected"
+        "https://raw.githubusercontent.com/$owner/$repo/$defaultBranch/$selected"
     }.getOrNull()
 }
