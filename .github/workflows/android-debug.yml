@@ -1,0 +1,75 @@
+name: Android Debug APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-debug-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build armeabi-v7a (Debug)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository and submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.44.0'
+          cache: true
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Build Russian Debug APK (armeabi-v7a)
+        run: |
+          flutter build apk \
+            --debug \
+            --flavor normal \
+            --target-platform android-arm \
+            --split-per-abi
+
+      - name: Verify APK
+        run: |
+          APK="build/app/outputs/flutter-apk/app-armeabi-v7a-debug.apk"
+          test -s "$APK"
+          echo "APK_SIZE=$(du -h "$APK" | cut -f1)" >> "$GITHUB_ENV"
+          cp "$APK" Obtainium-ru-armeabi-v7a-debug.apk
+
+      - name: Publish APK to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: debug-${{ github.run_number }}-${{ github.run_attempt }}
+          name: "Debug ${{ github.run_number }} (armeabi-v7a, Русский)"
+          body: |
+            Автоматическая Debug-сборка ветки main.
+
+            - Архитектура: armeabi-v7a (32-bit ARM)
+            - Язык интерфейса: русский
+            - Тип: Debug
+            - Commit: ${{ github.sha }}
+            - Размер APK: ${{ env.APK_SIZE }}
+
+            Сборка создаётся автоматически после каждого push в main.
+          files: Obtainium-ru-armeabi-v7a-debug.apk
+          draft: false
+          prerelease: true
+          fail_on_unmatched_files: true
