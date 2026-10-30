@@ -24,7 +24,7 @@ class ApkInstaller(private val context: Context) {
   .followRedirects(true)
   .build()
 
- suspend fun downloadAndInstall(app: TrackedApp, githubToken: String = "") = withContext(Dispatchers.IO) {
+ suspend fun downloadAndInstall(app: TrackedApp, githubToken: String = "", onProgress: (Long, Long) -> Unit = { _, _ -> }) = withContext(Dispatchers.IO) {
   require(app.apkUrl.isNotBlank()) {
    "APK не найден. Нажмите «Проверить» и убедитесь, что в выбранном релизе есть APK-файл."
   }
@@ -55,8 +55,20 @@ class ApkInstaller(private val context: Context) {
     if (body.contentLength() > 0 && body.contentLength() > 1_000_000_000L) {
      error("Размер APK превышает допустимый предел")
     }
+    val total = body.contentLength()
     body.byteStream().use { input ->
-     apk.outputStream().buffered().use { output -> input.copyTo(output) }
+     apk.outputStream().buffered().use { output ->
+      val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+      var downloaded = 0L
+      var read: Int
+      onProgress(0L, total)
+      while (input.read(buffer).also { read = it } != -1) {
+       output.write(buffer, 0, read)
+       downloaded += read
+       onProgress(downloaded, total)
+      }
+      output.flush()
+     }
     }
    }
    require(apk.length() > 2) { "Скачанный файл пуст или повреждён" }
