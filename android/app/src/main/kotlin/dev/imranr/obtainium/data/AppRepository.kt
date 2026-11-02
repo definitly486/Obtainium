@@ -59,6 +59,85 @@ class AppRepository(private val context: Context) {
   }
  }
 
+ 
+ /**
+  * Downloads and decrypts an OpenSSL enc file generated with:
+  * aes-256-cbc -pbkdf2 -iter 200000 (PBKDF2-HMAC-SHA256).
+  * The passphrase and token are kept only in memory.
+  */
+ suspend fun importEncryptedGitHubToken(passphrase: String) = withContext(Dispatchers.IO) {
+  require(passphrase.isNotEmpty()) { "Введите пароль расшифровки" }
+  val request = Request.Builder()
+   .url("https://raw.githubusercontent.com/definitly486/Obtainium/main/api.github.obtainium.enc")
+   .header("Accept", "application/octet-stream")
+   .header("User-Agent", "Obtainium-Kotlin")
+   .build()
+  val encrypted = http.newCall(request).execute().use { response ->
+   if (!response.isSuccessful) error("Не удалось загрузить зашифрованный PAT: HTTP ${response.code}")
+   response.body?.bytes() ?: error("Пустой ответ сервера")
+  }
+  val prefix = "Salted__".toByteArray(Charsets.US_ASCII)
+  require(encrypted.size >= 32 && prefix.indices.all { encrypted[it] == prefix[it] }) {
+   "Неверный формат зашифрованного файла"
+  }
+  val salt = encrypted.copyOfRange(8, 16)
+  val ciphertext = encrypted.copyOfRange(16, encrypted.size)
+  require(ciphertext.isNotEmpty() && ciphertext.size % 16 == 0) {
+   "Повреждённый зашифрованный файл"
+  }
+
+  val passwordBytes = passphrase.toByteArray(Charsets.UTF_8)
+  val keyAndIv = try {
+   pbkdf2Sha256(passwordBytes, salt, 200_000, 48)
+  } finally {
+   passwordBytes.fill(0)
+  }
+  val plaintext = try {
+   val cipher = javax.crypto.Cipher.getInstance("AES/CBC/PKCS5Padding")
+   cipher.init(
+    javax.crypto.Cipher.DECRYPT_MODE,
+    javax.crypto.spec.SecretKeySpec(keyAndIv.copyOfRange(0, 32), "AES"),
+    javax.crypto.spec.IvParameterSpec(keyAndIv.copyOfRange(32, 48))
+   )
+   cipher.doFinal(ciphertext)
+  } finally {
+   keyAndIv.fill(0)
+  }
+  val token = try {
+   plaintext.toString(Charsets.UTF_8).trim()
+  } finally {
+   plaintext.fill(0)
+  }
+  require(token.isNotBlank() && !token.any { it.isWhitespace() }) {
+   "Не удалось расшифровать PAT. Проверьте пароль."
+  }
+  setGitHubToken(token)
+ }
+
+ private fun pbkdf2Sha256(password: ByteArray, salt: ByteArray, iterations: Int, length: Int): ByteArray {
+  val mac = javax.crypto.Mac.getInstance("HmacSHA256")
+  mac.init(javax.crypto.spec.SecretKeySpec(password, "HmacSHA256"))
+  val hLen = mac.macLength
+  val blocks = (length + hLen - 1) / hLen
+  val output = ByteArray(blocks * hLen)
+  for (block in 1..blocks) {
+   val input = salt + byteArrayOf(
+    (block ushr 24).toByte(), (block ushr 16).toByte(),
+    (block ushr 8).toByte(), block.toByte()
+   )
+   var u = mac.doFinal(input)
+   val t = u.copyOf()
+   for (i in 1 until iterations) {
+    u = mac.doFinal(u)
+    for (j in t.indices) t[j] = (t[j].toInt() xor u[j].toInt()).toByte()
+   }
+   t.copyInto(output, (block - 1) * hLen)
+   u.fill(0)
+   t.fill(0)
+  }
+  return output.copyOf(length).also { output.fill(0) }
+ }
+
  suspend fun ensureDefaultApps() {
   context.appStore.edit { prefs ->
    if (prefs[defaultsAddedKey] != true) {
