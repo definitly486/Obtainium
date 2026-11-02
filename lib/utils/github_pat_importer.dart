@@ -55,7 +55,7 @@ Future<String> downloadAndDecryptGithubPat(String password) async {
 
   final plaintext = cipher.process(ciphertext);
   final token = utf8.decode(plaintext, allowMalformed: false).trim();
-  if (token.isEmpty || token.contains(RegExp(r'\\s'))) {
+  if (token.isEmpty || token.contains(RegExp(r'\s'))) {
     throw const FormatException('Не удалось расшифровать GitHub PAT. Проверьте пароль.');
   }
   return token;
