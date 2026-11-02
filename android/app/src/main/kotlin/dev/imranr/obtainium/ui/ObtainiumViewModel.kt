@@ -26,6 +26,12 @@ class ObtainiumViewModel(app: Application) : AndroidViewModel(app) {
   viewModelScope.launch { repository.setGitHubToken(token) }
  }
 
+ fun importEncryptedGitHubToken(passphrase: String, done: (Result<Unit>) -> Unit) {
+  viewModelScope.launch {
+   done(runCatching { repository.importEncryptedGitHubToken(passphrase) })
+  }
+ }
+
  init {
   viewModelScope.launch { repository.ensureDefaultApps() }
  }
