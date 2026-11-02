@@ -58,6 +58,9 @@ fun ObtainiumScreen(model: ObtainiumViewModel) {
  var error by remember { mutableStateOf<String?>(null) }
  var tokenDialog by remember { mutableStateOf(false) }
  var tokenDraft by remember { mutableStateOf("") }
+ var importPasswordDialog by remember { mutableStateOf(false) }
+ var importPassword by remember { mutableStateOf("") }
+ var importingPat by remember { mutableStateOf(false) }
  var editingApp by remember { mutableStateOf<TrackedApp?>(null) }
  var editUrl by remember { mutableStateOf("") }
  var editName by remember { mutableStateOf("") }
@@ -69,6 +72,7 @@ fun ObtainiumScreen(model: ObtainiumViewModel) {
    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
     OutlinedButton(onClick = model::checkAll, enabled = apps.isNotEmpty()) { Text("Проверить") }
     OutlinedButton(onClick = { tokenDraft = githubToken; tokenDialog = true }) { Text("PAT") }
+    OutlinedButton(onClick = { importPassword = ""; importPasswordDialog = true }) { Text("Загрузить PAT") }
     Button(onClick = { adding = true }) { Text("Добавить") }
    }
   }
@@ -167,6 +171,58 @@ fun ObtainiumScreen(model: ObtainiumViewModel) {
    }) { Text("Сохранить") }
   },
   dismissButton = { TextButton(onClick = { tokenDialog = false }) { Text("Отмена") } }
+ )
+
+
+ if (importPasswordDialog) AlertDialog(
+  onDismissRequest = {
+   if (!importingPat) {
+    importPasswordDialog = false
+    importPassword = ""
+   }
+  },
+  title = { Text("Загрузка GitHub PAT") },
+  text = {
+   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Text("Введите пароль для расшифровки файла api.github.obtainium.enc. После расшифровки токен будет сохранён в настройках.")
+    OutlinedTextField(
+     value = importPassword,
+     onValueChange = { importPassword = it },
+     label = { Text("Пароль расшифровки") },
+     singleLine = true,
+     enabled = !importingPat,
+     visualTransformation = PasswordVisualTransformation()
+    )
+    if (importingPat) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+   }
+  },
+  confirmButton = {
+   TextButton(
+    enabled = importPassword.isNotEmpty() && !importingPat,
+    onClick = {
+     importingPat = true
+     model.importEncryptedGitHubToken(importPassword) { result ->
+      importingPat = false
+      importPassword = ""
+      importPasswordDialog = false
+      result.onSuccess {
+       Toast.makeText(context, "GitHub PAT успешно сохранён", Toast.LENGTH_LONG).show()
+      }.onFailure {
+       Toast.makeText(context, it.message ?: "Не удалось загрузить PAT", Toast.LENGTH_LONG).show()
+      }
+     }
+    }
+   ) { Text(if (importingPat) "Загрузка…" else "Загрузить и сохранить") }
+  },
+  dismissButton = {
+   TextButton(
+    enabled = !importingPat,
+    onClick = {
+     importPasswordDialog = false
+     importPassword = ""
+    }
+   ) { Text("Отмена") }
+  }
  )
 
 }
