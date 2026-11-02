@@ -24,6 +24,7 @@ import 'package:obtainium/providers/source_provider.dart';
 import 'package:obtainium/theme.dart';
 import 'package:obtainium/utils/update_health.dart';
 import 'package:obtainium/utils/locale_utils.dart';
+import 'package:obtainium/utils/github_pat_importer.dart';
 import 'package:obtainium/utils/native_features.dart';
 import 'package:obtainium/utils/nav_helper.dart';
 import 'package:provider/provider.dart';
@@ -62,6 +63,7 @@ class _SettingsPageState extends State<SettingsPage> {
   int? androidSdkInt;
   int _installerCheckSeq = 0;
   bool _isRunningBgCheck = false;
+  bool _isImportingGithubPat = false;
 
   @override
   void initState() {
@@ -467,6 +469,55 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  Future<void> _importGithubPat(BuildContext context) async {
+    final passwordController = TextEditingController();
+    final password = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Расшифровка GitHub PAT'),
+        content: TextField(
+          controller: passwordController,
+          autofocus: true,
+          obscureText: true,
+          autocorrect: false,
+          enableSuggestions: false,
+          decoration: const InputDecoration(
+            labelText: 'Пароль расшифровки',
+          ),
+          onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(tr('cancel')),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(passwordController.text),
+            child: Text(tr('continue')),
+          ),
+        ],
+      ),
+    );
+    passwordController.dispose();
+    if (password == null || password.isEmpty || !context.mounted) return;
+
+    setState(() => _isImportingGithubPat = true);
+    try {
+      final token = await downloadAndDecryptGithubPat(password);
+      if (!context.mounted) return;
+      context.read<SettingsProvider>().setSettingString('github-creds', token);
+      showMessage(
+        ObtainiumError('GitHub PAT успешно загружен и сохранён'),
+        context,
+      );
+    } catch (e) {
+      if (context.mounted) showError(e, context);
+    } finally {
+      if (mounted) setState(() => _isImportingGithubPat = false);
+    }
+  }
+
   Widget _buildSourceSpecificForm(BuildContext context) {
     final settingsProvider = context.read<SettingsProvider>();
     final allSourceConfigItems = context
@@ -482,8 +533,26 @@ class _SettingsPageState extends State<SettingsPage> {
         item.value = settingsProvider.getSettingString(item.key);
       }
     }
-    return GeneratedForm(
-      tileMode: true,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: AppSpacings.md,
+      children: [
+        FilledButton.icon(
+          onPressed: _isImportingGithubPat
+              ? null
+              : () => _importGithubPat(context),
+          icon: _isImportingGithubPat
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.download),
+          label: const Text('Загрузить GitHub PAT из файла'),
+        ),
+        GeneratedForm(
+          key: ValueKey(settingsProvider.getSettingString('github-creds')),
+          tileMode: true,
       items: allSourceConfigItems.map((e) => [e]).toList(),
       onValueChanges: (values, valid, isBuilding) {
         if (valid && !isBuilding) {
@@ -499,6 +568,8 @@ class _SettingsPageState extends State<SettingsPage> {
           });
         }
       },
+        ),
+      ],
     );
   }
 
