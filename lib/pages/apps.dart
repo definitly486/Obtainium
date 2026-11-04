@@ -1335,11 +1335,18 @@ class AppsPageState extends State<AppsPage> {
                           icon: const Icon(Icons.refresh_rounded),
                           tooltip: tr('refresh'),
                         ),
+                      TextButton.icon(
+                        onPressed: () {
+                          NavHelper.pushSettingsPage(context);
+                        },
+                        icon: const Icon(Icons.import_export_rounded),
+                        label: Text(tr('importExport')),
+                      ),
                       IconButton(
                         onPressed: () {
                           NavHelper.pushSettingsPage(context);
                         },
-                        icon: const Icon(Icons.settings_outlined),
+                        icon: const Icon(Icons.settings_rounded),
                         tooltip: tr('settings'),
                       ),
                     ],
