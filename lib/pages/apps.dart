@@ -14,6 +14,7 @@ import 'package:obtainium/custom_errors.dart';
 import 'package:obtainium/utils/locale_utils.dart';
 import 'package:obtainium/main.dart';
 import 'package:obtainium/pages/app.dart';
+import 'package:obtainium/pages/import_export.dart';
 import 'package:obtainium/providers/apps_provider.dart';
 import 'package:obtainium/providers/notifications_provider.dart';
 import 'package:obtainium/providers/settings_provider.dart';
@@ -1341,6 +1342,17 @@ class AppsPageState extends State<AppsPage> {
                         },
                         icon: const Icon(Icons.import_export_rounded),
                         label: Text(tr('importExport')),
+                      ),
+                      TextButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const ImportFromURLListPage(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.playlist_add_rounded),
+                        label: Text(tr('importFromURLList')),
                       ),
                       IconButton(
                         onPressed: () {
