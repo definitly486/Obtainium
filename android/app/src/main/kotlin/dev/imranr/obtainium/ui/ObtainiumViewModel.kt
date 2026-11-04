@@ -39,6 +39,16 @@ class ObtainiumViewModel(app: Application) : AndroidViewModel(app) {
  fun add(url: String, done: (Result<TrackedApp>) -> Unit) {
   viewModelScope.launch { done(repository.add(url)) }
  }
+
+ fun addUrlList(raw: String, done: (Result<Pair<Int, Int>>) -> Unit) {
+  viewModelScope.launch { done(runCatching { repository.addUrlList(raw) }) }
+ }
+ fun exportAppsJson(done: (Result<String>) -> Unit) {
+  viewModelScope.launch { done(runCatching { repository.exportAppsJson() }) }
+ }
+ fun importAppsJson(raw: String, done: (Result<Pair<Int, Int>>) -> Unit) {
+  viewModelScope.launch { done(runCatching { repository.importAppsJson(raw) }) }
+ }
  fun update(id: String, url: String, name: String, done: (Result<TrackedApp>) -> Unit) {
   viewModelScope.launch { done(repository.update(id, url, name)) }
  }
