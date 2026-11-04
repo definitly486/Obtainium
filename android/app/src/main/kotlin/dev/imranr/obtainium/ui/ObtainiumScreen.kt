@@ -2,6 +2,8 @@ package dev.imranr.obtainium.ui
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -79,9 +81,12 @@ fun ObtainiumScreen(model: ObtainiumViewModel) {
  var transferBusy by remember { mutableStateOf(false) }
 
  Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-  Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-   Row(verticalAlignment = Alignment.CenterVertically) { Text("Obtainium", style = MaterialTheme.typography.headlineMedium); IconButton(onClick = { settingsDialog = true }) { Icon(Icons.Filled.Settings, contentDescription = "Настройки") } }
-   Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+  Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+   Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+    Text("Obtainium", style = MaterialTheme.typography.headlineMedium)
+    IconButton(onClick = { settingsDialog = true }) { Icon(Icons.Filled.Settings, contentDescription = "Настройки") }
+   }
+   Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
     OutlinedButton(onClick = model::checkAll, enabled = apps.isNotEmpty()) { Text("Проверить") }
     OutlinedButton(onClick = { transferMode = "export"; model.exportAppsJson { result -> result.onSuccess { transferText = it; transferDialog = true }.onFailure { Toast.makeText(context, it.message, Toast.LENGTH_LONG).show() } } }) { Text("Импорт/Экспорт") }
     OutlinedButton(onClick = { urlListDraft = ""; urlListDialog = true }) { Text("Импорт списка URL") }
