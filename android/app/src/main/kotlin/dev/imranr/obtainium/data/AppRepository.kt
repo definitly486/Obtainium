@@ -197,7 +197,7 @@ class AppRepository(private val context: Context) {
    val parsed = runCatching {
     val uri = URI(url)
     require(uri.host != null && uri.scheme in setOf("http", "https"))
-    TrackedApp(item.optString("id").ifBlank { UUID.randomUUID().toString() }, url,
+    TrackedApp(item.optString("id").takeIf { candidate -> candidate.isNotBlank() && existing.none { it.id == candidate } } ?: UUID.randomUUID().toString(), url,
      item.optString("name").ifBlank { uri.host.orEmpty() }, item.optString("version"),
      item.optString("apk"), item.optLong("checked"),
      item.optString("error").takeUnless { it.isBlank() || it == "null" },
