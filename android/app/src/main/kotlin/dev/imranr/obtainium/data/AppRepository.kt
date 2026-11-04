@@ -174,6 +174,64 @@ class AppRepository(private val context: Context) {
  }
 
 
+
+ suspend fun exportAppsJson(): String = withContext(Dispatchers.IO) {
+  JSONArray().also { array -> current().forEach { app ->
+   array.put(JSONObject().apply {
+    put("id", app.id); put("url", app.sourceUrl); put("name", app.name)
+    put("version", app.latestVersion); put("apk", app.apkUrl); put("checked", app.lastChecked)
+    put("error", app.error ?: JSONObject.NULL); put("packageName", app.packageName)
+   })
+  } }.toString(2)
+ }
+
+ suspend fun importAppsJson(raw: String): Pair<Int, Int> = withContext(Dispatchers.IO) {
+  val array = JSONArray(raw)
+  val existing = current().toMutableList()
+  val known = existing.map { canonical(it.sourceUrl) }.toMutableSet()
+  var added = 0
+  for (i in 0 until array.length()) {
+   val item = array.optJSONObject(i) ?: continue
+   val url = item.optString("url").trim()
+   if (url.isBlank() || !known.add(canonical(url))) continue
+   val parsed = runCatching {
+    val uri = URI(url)
+    require(uri.host != null && uri.scheme in setOf("http", "https"))
+    TrackedApp(item.optString("id").ifBlank { UUID.randomUUID().toString() }, url,
+     item.optString("name").ifBlank { uri.host.orEmpty() }, item.optString("version"),
+     item.optString("apk"), item.optLong("checked"),
+     item.optString("error").takeUnless { it.isBlank() || it == "null" },
+     item.optString("packageName"))
+   }.getOrNull() ?: continue
+   existing.add(parsed)
+   added++
+  }
+  if (added > 0) save(existing)
+  added to array.length()
+ }
+
+ suspend fun addUrlList(raw: String): Pair<Int, Int> = withContext(Dispatchers.IO) {
+  val lines = raw.lineSequence().map { it.trim() }
+   .filter { it.isNotBlank() && !it.startsWith("#") }
+   .map { it.substringBefore(" ").trim() }.distinct().toList()
+  val existing = current().toMutableList()
+  val known = existing.map { canonical(it.sourceUrl) }.toMutableSet()
+  var added = 0
+  for (line in lines) {
+   val normalized = line.let { if (it.startsWith("http://") || it.startsWith("https://")) it else "https://$it" }
+   val valid = runCatching { URI(normalized).let { it.host != null && it.scheme in setOf("http", "https") } }.getOrDefault(false)
+   if (!valid || !known.add(canonical(normalized))) continue
+   val uri = URI(normalized)
+   val segments = uri.path.split('/').filter { it.isNotBlank() }
+   val name = if (uri.host.equals("github.com", true) && segments.size >= 2) segments[1]
+    else segments.lastOrNull().orEmpty().ifBlank { uri.host.orEmpty() }
+   existing.add(TrackedApp(UUID.randomUUID().toString(), normalized, name))
+   added++
+  }
+  if (added > 0) save(existing)
+  added to lines.size
+ }
+
  suspend fun update(id: String, rawUrl: String, rawName: String): Result<TrackedApp> = withContext(Dispatchers.IO) {
   runCatching {
    val url = rawUrl.trim().let {
