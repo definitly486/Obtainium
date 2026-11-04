@@ -14,6 +14,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
@@ -65,12 +70,21 @@ fun ObtainiumScreen(model: ObtainiumViewModel) {
  var editUrl by remember { mutableStateOf("") }
  var editName by remember { mutableStateOf("") }
  var editError by remember { mutableStateOf<String?>(null) }
+ var settingsDialog by remember { mutableStateOf(false) }
+ var urlListDialog by remember { mutableStateOf(false) }
+ var urlListDraft by remember { mutableStateOf("") }
+ var transferDialog by remember { mutableStateOf(false) }
+ var transferText by remember { mutableStateOf("") }
+ var transferMode by remember { mutableStateOf("export") }
+ var transferBusy by remember { mutableStateOf(false) }
 
  Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
   Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-   Text("Obtainium", style = MaterialTheme.typography.headlineMedium)
+   Row(verticalAlignment = Alignment.CenterVertically) { Text("Obtainium", style = MaterialTheme.typography.headlineMedium); IconButton(onClick = { settingsDialog = true }) { Icon(Icons.Filled.Settings, contentDescription = "Настройки") } }
    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
     OutlinedButton(onClick = model::checkAll, enabled = apps.isNotEmpty()) { Text("Проверить") }
+    OutlinedButton(onClick = { transferMode = "export"; model.exportAppsJson { result -> result.onSuccess { transferText = it; transferDialog = true }.onFailure { Toast.makeText(context, it.message, Toast.LENGTH_LONG).show() } } }) { Text("Импорт/Экспорт") }
+    OutlinedButton(onClick = { urlListDraft = ""; urlListDialog = true }) { Text("Импорт списка URL") }
     OutlinedButton(onClick = { tokenDraft = githubToken; tokenDialog = true }) { Text("PAT") }
     OutlinedButton(onClick = { importPassword = ""; importPasswordDialog = true }) { Text("Загрузить PAT") }
     Button(onClick = { adding = true }) { Text("Добавить") }
@@ -103,6 +117,71 @@ fun ObtainiumScreen(model: ObtainiumViewModel) {
    }
   }
  }
+
+
+ if (settingsDialog) AlertDialog(
+  onDismissRequest = { settingsDialog = false },
+  title = { Text("Настройки") },
+  text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+   Text("Obtainium — менеджер обновлений приложений.")
+   Text("GitHub PAT можно настроить кнопкой PAT на главном экране.")
+   Text("Импорт и экспорт списка приложений доступны отдельной кнопкой на главном экране.")
+  } },
+  confirmButton = { TextButton(onClick = { settingsDialog = false }) { Text("Закрыть") } }
+ )
+
+ if (urlListDialog) AlertDialog(
+  onDismissRequest = { urlListDialog = false },
+  title = { Text("Импорт списка URL") },
+  text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+   Text("Вставьте ссылки — по одной на строку. Повторяющиеся ссылки будут пропущены.")
+   OutlinedTextField(value = urlListDraft, onValueChange = { urlListDraft = it },
+    modifier = Modifier.fillMaxWidth().heightIn(min = 150.dp, max = 320.dp),
+    label = { Text("URL приложений") }, minLines = 5)
+  } },
+  confirmButton = { TextButton(onClick = {
+   model.addUrlList(urlListDraft) { result ->
+    result.onSuccess { (added, total) ->
+     Toast.makeText(context, "Добавлено: $added из $total ссылок", Toast.LENGTH_LONG).show()
+     urlListDialog = false
+    }.onFailure { Toast.makeText(context, it.message ?: "Ошибка импорта", Toast.LENGTH_LONG).show() }
+   }
+  }, enabled = urlListDraft.isNotBlank()) { Text("Импортировать") } },
+  dismissButton = { TextButton(onClick = { urlListDialog = false }) { Text("Отмена") } }
+ )
+
+ if (transferDialog) AlertDialog(
+  onDismissRequest = { if (!transferBusy) transferDialog = false },
+  title = { Text(if (transferMode == "export") "Экспорт приложений" else "Импорт приложений") },
+  text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+   Text(if (transferMode == "export") "Скопируйте JSON списка приложений. Для переноса на другое устройство вставьте его в импорт." else "Вставьте JSON, ранее экспортированный из Obtainium.")
+   OutlinedTextField(value = transferText, onValueChange = { transferText = it },
+    modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp, max = 360.dp),
+    label = { Text("JSON") }, minLines = 6)
+  } },
+  confirmButton = { Row {
+   TextButton(onClick = {
+    if (transferMode == "export") {
+     val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+     clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Obtainium export", transferText))
+     Toast.makeText(context, "JSON скопирован", Toast.LENGTH_SHORT).show()
+    } else {
+     transferBusy = true
+     model.importAppsJson(transferText) { result ->
+      transferBusy = false
+      result.onSuccess { (added, total) ->
+       Toast.makeText(context, "Импортировано: $added из $total записей", Toast.LENGTH_LONG).show()
+       transferDialog = false
+      }.onFailure { Toast.makeText(context, it.message ?: "Некорректный JSON", Toast.LENGTH_LONG).show() }
+     }
+    }
+   }, enabled = transferText.isNotBlank()) { Text(if (transferMode == "export") "Копировать" else "Импортировать") }
+  } },
+  dismissButton = { Row {
+   if (transferMode == "export") TextButton(onClick = { transferMode = "import"; transferText = "" }) { Text("Перейти к импорту") }
+   TextButton(onClick = { transferDialog = false }) { Text("Закрыть") }
+  } }
+ )
 
  if (adding) AlertDialog(
   onDismissRequest = { adding = false },
